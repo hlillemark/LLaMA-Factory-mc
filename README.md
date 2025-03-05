@@ -27,6 +27,14 @@
     </picture>
 </p>
 
+## Minecraft SFT Data and processing:
+Data conversion in `scripts/convert_mc_txt_to_json.py` takes the file from text files to the json format expected by Local Llama. It will create the file `custom/data_mc.json` from the directory `custom/logs_full/`.
+
+Test a run with: 
+```bash
+llamafactory-cli train examples/train_full/llama3_full_sft_mc.yaml
+```
+
 👋 Join our [WeChat](assets/wechat.jpg) or [NPU user group](assets/wechat_npu.jpg).
 
 \[ English | [中文](README_zh.md) \]
