@@ -8,6 +8,9 @@
   "data_mc": {
     "file_name": "custom/data_mc.json"
   },
+  "data_mc_filtered": {
+    "file_name": "custom/data_mc_filtered.json"
+  },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
   },

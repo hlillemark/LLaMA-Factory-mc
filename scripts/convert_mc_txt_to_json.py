@@ -69,30 +69,32 @@ def extract_conversation_parts(text):
 
 def process_log_files():
     data = []
-    logs_dir = "logs_full"
+    base_logs_dir = "data/custom/logs_filtered"
 
     # Walk through all subdirectories
-    for task_dir in os.listdir(logs_dir):
-        task_path = os.path.join(logs_dir, task_dir)
-        if not os.path.isdir(task_path):
-            continue
-
-        # Process each example file in task directory
-        for example_file in os.listdir(task_path):
-            file_path = os.path.join(task_path, example_file)
-            if not os.path.isfile(file_path):
+    for chunk in os.listdir(base_logs_dir):
+        chunk_dir = os.path.join(base_logs_dir, chunk)
+        for task_dir in os.listdir(chunk_dir):
+            task_path = os.path.join(chunk_dir, task_dir)
+            if not os.path.isdir(task_path):
                 continue
 
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-                    conversation_parts = extract_conversation_parts(text)
-                    data.append(conversation_parts)
-            except Exception as e:
-                print(f"Error processing {file_path}: {e}")
+            # Process each example file in task directory
+            for example_file in os.listdir(task_path):
+                file_path = os.path.join(task_path, example_file)
+                if not os.path.isfile(file_path):
+                    continue
+
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                        conversation_parts = extract_conversation_parts(text)
+                        data.append(conversation_parts)
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
 
     # Write output JSON file
-    with open('data_mc.json', 'w', encoding='utf-8') as f:
+    with open('data/custom/data_mc_filtered.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
 
 if __name__ == "__main__":
