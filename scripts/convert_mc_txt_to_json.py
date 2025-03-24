@@ -47,6 +47,7 @@ This script will run the processing and create one json text file for this named
 import os
 import json
 import re
+import argparse
 
 def extract_conversation_parts(text):
     # Extract instruction (prompt)
@@ -67,35 +68,45 @@ def extract_conversation_parts(text):
         "output": response
     }
 
-def process_log_files():
+def process_log_files(input_dir=None, output_file=None):
     data = []
-    base_logs_dir = "data/custom/logs_filtered"
+    
+    # Use default paths if not specified
+    if input_dir is None:
+        input_dir = "data/custom/logs_filtered"
+    
+    if output_file is None:
+        output_file = "data/custom/data_mc_filtered.json"
 
     # Walk through all subdirectories
-    for chunk in os.listdir(base_logs_dir):
-        chunk_dir = os.path.join(base_logs_dir, chunk)
-        for task_dir in os.listdir(chunk_dir):
-            task_path = os.path.join(chunk_dir, task_dir)
-            if not os.path.isdir(task_path):
-                continue
+    for root, dirs, files in os.walk(input_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                    conversation_parts = extract_conversation_parts(text)
+                    data.append(conversation_parts)
+            except Exception as e:
+                print(f"Error processing {file_path}: {e}")
 
-            # Process each example file in task directory
-            for example_file in os.listdir(task_path):
-                file_path = os.path.join(task_path, example_file)
-                if not os.path.isfile(file_path):
-                    continue
-
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        text = f.read()
-                        conversation_parts = extract_conversation_parts(text)
-                        data.append(conversation_parts)
-                except Exception as e:
-                    print(f"Error processing {file_path}: {e}")
-
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
     # Write output JSON file
-    with open('data/custom/data_mc_filtered.json', 'w', encoding='utf-8') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
+    
+    print(f"Processed {len(data)} conversations and saved to {output_file}")
 
 if __name__ == "__main__":
-    process_log_files()
+    parser = argparse.ArgumentParser(description='Convert Minecraft text logs to JSON format')
+    parser.add_argument('--input_dir', type=str, default="data/custom/logs_filtered", 
+                        help='Directory containing log files (default: data/custom/logs_filtered)')
+    parser.add_argument('--output_file', type=str, default="data/custom/data_mc_filtered.json", 
+                        help='Path to output JSON file (default: data/custom/data_mc_filtered.json)')
+    
+    args = parser.parse_args()
+    
+    process_log_files(args.input_dir, args.output_file)
