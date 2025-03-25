@@ -99,3 +99,7 @@ EXPOSE 7860
 # Expose port 8000 for the API service
 ENV API_PORT 8000
 EXPOSE 8000
+
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+RUN unzip awscliv2.zip
+RUN ./aws/install
