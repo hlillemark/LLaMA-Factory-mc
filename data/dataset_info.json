@@ -11,6 +11,18 @@
   "data_mc_filtered": {
     "file_name": "custom/data_mc_filtered.json"
   },
+  "filtered_construction_train_data": {
+    "file_name": "custom/filtered_construction_train_data.json"
+  },
+  "filtered_cooking_train_data": {
+    "file_name": "custom/filtered_cooking_train_data.json"
+  },
+  "filtered_crafting_train_data": {
+    "file_name": "filtered_crafting_train_data.json"
+  },
+  "final_combined_mc_data": {
+    "file_name": "final_combined_mc_data.json "
+  },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
   },
