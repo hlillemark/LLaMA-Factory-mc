@@ -38,3 +38,7 @@ val_size: 0.02
 per_device_eval_batch_size: 2
 eval_strategy: steps
 eval_steps: 50
+
+### reporting
+report_to: wandb
+run_name: llama3-8b-full-construction-data
