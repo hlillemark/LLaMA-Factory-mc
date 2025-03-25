@@ -21,7 +21,7 @@
     "file_name": "custom/filtered_crafting_train_data.json"
   },
   "final_combined_mc_data": {
-    "file_name": "custom/final_combined_mc_data.json "
+    "file_name": "custom/final_combined_mc_data.json"
   },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
