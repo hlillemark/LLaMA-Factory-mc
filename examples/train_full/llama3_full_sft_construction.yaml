@@ -12,7 +12,7 @@ push_to_hub: true
 ### dataset
 dataset: identity,filtered_construction_train_data
 template: llama3
-cutoff_len: 12000
+cutoff_len: 16000
 overwrite_cache: true
 preprocessing_num_workers: 16
 
@@ -24,8 +24,8 @@ plot_loss: true
 overwrite_output_dir: true
 
 ### train
-per_device_train_batch_size: 2
-gradient_accumulation_steps: 8
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
 learning_rate: 1.0e-5
 num_train_epochs: 10.0
 lr_scheduler_type: cosine
