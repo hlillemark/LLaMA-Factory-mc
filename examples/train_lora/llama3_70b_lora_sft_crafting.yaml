@@ -20,7 +20,7 @@ preprocessing_num_workers: 16
 deepspeed: examples/deepspeed/ds_z3_config.json  # choices: [ds_z0_config.json, ds_z2_config.json, ds_z3_config.json]
 
 ### output
-output_dir: saves/llama3-70b/lora/filtered_crafting_train_data
+output_dir: saves/llama3-70b/lora/llama_3_70b_lora_sft_crafting
 logging_steps: 10
 save_steps: 500
 plot_loss: true
@@ -44,5 +44,5 @@ eval_steps: 30
 
 ### reporting
 report_to: wandb
-run_name: llama3-70b-lora-cooking-data
+run_name: llama3-70b-lora-crafting-data
 
