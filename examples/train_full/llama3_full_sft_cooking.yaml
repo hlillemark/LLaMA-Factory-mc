@@ -1,6 +1,5 @@
 ### model
-model_name_or_path: meta-llama/Meta-Llama-3-8B-Instruct
-trust_remote_code: true
+model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
 
 ### method
 stage: sft
@@ -41,4 +40,4 @@ eval_steps: 50
 
 ### reporting
 report_to: wandb
-run_name: llama3-8b-full-cooking-data
+run_name: llama3.1-8b-full-cooking-data
