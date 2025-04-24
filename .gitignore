@@ -178,3 +178,4 @@ wandb/
 swanlog/
 generated_predictions.jsonl
 data/custom/**
+downloaded_data/*

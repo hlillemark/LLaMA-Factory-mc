@@ -10,14 +10,14 @@ deepspeed: examples/deepspeed/ds_z3_config.json  # choices: [ds_z0_config.json, 
 push_to_hub: true
 
 ### dataset
-dataset: identity,filtered_cooking_train_data
+dataset: identity,new_cooking_data
 template: llama3
 cutoff_len: 8192
 overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3-8b/full/filtered_cooking_train_data
+output_dir: saves/llama3-8b/full/new_cooking_data
 logging_steps: 10
 save_steps: 500
 plot_loss: true

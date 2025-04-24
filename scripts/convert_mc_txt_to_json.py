@@ -77,12 +77,12 @@ def process_log_files(input_dir=None, output_file=None):
     
     if output_file is None:
         output_file = "data/custom/data_mc_filtered.json"
-
     # Walk through all subdirectories
     for root, dirs, files in os.walk(input_dir):
         for file in files:
             file_path = os.path.join(root, file)
-            
+            if "conversation" not in file_path and "memSaving" not in file_path and "coding" not in file_path:
+                continue
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     text = f.read()

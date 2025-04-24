@@ -23,6 +23,9 @@
   "final_combined_mc_data": {
     "file_name": "custom/final_combined_mc_data.json"
   },
+  "new_cooking_data": {
+    "file_name": "custom/new_cooking_data.json"
+  },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
   },
