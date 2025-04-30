@@ -26,8 +26,8 @@
   "new_cooking_data": {
     "file_name": "custom/new_cooking_data.json"
   },
-  "cooking_dpo_data": {
-    "file_name": "custom/cooking_dpo_data.json"
+  "crafting_dpo_data": {
+    "file_name": "custom/crafting_dpo_dataset.json"
   },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"

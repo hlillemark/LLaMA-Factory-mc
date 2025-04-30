@@ -1,13 +1,13 @@
 ### model
-model_name_or_path: izzcw/filtered_cooking_train_data
+model_name_or_path: izzcw/filtered_crafting_train_data
 trust_remote_code: true
 
 ### method
 stage: dpo
 do_train: true
-finetuning_type: full
-# lora_rank: 8
-# lora_target: all
+finetuning_type: lora
+lora_rank: 8
+lora_target: all
 pref_beta: 0.1
 pref_loss: sigmoid  # choices: [sigmoid (dpo), orpo, simpo]
 push_to_hub: true
