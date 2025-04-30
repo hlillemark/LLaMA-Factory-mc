@@ -6,8 +6,10 @@ trust_remote_code: true
 stage: dpo
 do_train: true
 finetuning_type: lora
-deepspeed: examples/deepspeed/ds_z3_config.json  # choices: [ds_z0_config.json, ds_z2_config.json, ds_z3_config.json]
-push_to_hub: true
+lora_rank: 8
+lora_target: all
+pref_beta: 0.1
+pref_loss: sigmoid  # ch
 
 ### dataset
 dataset: cooking_dpo_data
