@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: meta-llama/Meta-Llama-3-8B-Instruct
+model_name_or_path: izzcw/filtered_crafting_train_data_shorter_length
 trust_remote_code: true
 
 ### method
@@ -21,7 +21,7 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3-8b/lora/dpo_crafting_lora_from_base
+output_dir: saves/llama3-8b/lora/dpo_crafting_lora_from_sft
 logging_steps: 10
 save_steps: 500
 plot_loss: true
