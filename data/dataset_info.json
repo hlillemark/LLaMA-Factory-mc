@@ -27,7 +27,14 @@
     "file_name": "custom/new_cooking_data.json"
   },
   "crafting_dpo_data": {
-    "file_name": "custom/crafting_dpo_dataset.json"
+    "file_name": "custom/crafting_dpo_dataset.json",
+    "ranking": true,
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "conversations",
+      "chosen": "chosen",
+      "rejected": "rejected"
+    }
   },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
