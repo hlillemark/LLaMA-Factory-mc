@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: izzcw/filtered_cooking_train_data
+model_name_or_path: izzcw/filtered_crafting_train_data
 trust_remote_code: true
 
 ### method
@@ -21,7 +21,7 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3-8b/lora/dpo_cooking
+output_dir: saves/llama3-8b/lora/dpo_crafting
 logging_steps: 10
 save_steps: 500
 plot_loss: true
