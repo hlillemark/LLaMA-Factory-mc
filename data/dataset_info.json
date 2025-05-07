@@ -26,6 +26,12 @@
   "new_cooking_data": {
     "file_name": "custom/new_cooking_data.json"
   },
+  "large_crafting_sft_success": {
+    "file_name": "custom/crafting_sft_success.json"
+  },
+  "large_crafting_sft_fail": {
+    "file_name": "custom/crafting_sft_fail.json"
+  },
   "crafting_dpo_data": {
     "file_name": "custom/crafting_dpo_dataset.json",
     "ranking": true,
