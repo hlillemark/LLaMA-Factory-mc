@@ -17,7 +17,7 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3-8b/full/filtered_crafting_train_data_shorter_length
+output_dir: saves/llama3-8b/full/large_crafting_sft_success
 logging_steps: 10
 save_steps: 500
 plot_loss: true
