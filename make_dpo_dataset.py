@@ -357,10 +357,10 @@ def make_dpo_preference_trajectory_pairs(successful_text, unsuccessful_text):
     }
 
 
-make_sft_dataset(input_dir="downloaded_data/cooking", 
-                success_output_file="data/custom/cooking_sft_success.json", 
-                fail_output_file="data/custom/cooking_sft_fail.json", 
-                stats_output_file="data/custom/cooking/")
+make_sft_dataset(input_dir="downloaded_data/crafting", 
+                success_output_file="data/custom/crafting_sft_success.json", 
+                fail_output_file="data/custom/crafting_sft_fail.json", 
+                stats_output_file="data/custom/crafting_sft_stats.json")
 # dataset_statistics(input_dir="downloaded_data/cooking")
     
 
