@@ -71,7 +71,7 @@ def find_successful_task_files(
     Returns:
         list[str]: A list of file paths that match the criteria.
     """
-
+    test_items = ["bread", "golden_apple", "rabbit_stew", "cake", "baked_potato", "cooked_beef"]
     successful_task_files = []
     unsuccessful_task_files = []
 
@@ -80,6 +80,8 @@ def find_successful_task_files(
     for root, dirs, files in os.walk(directory):
         for folder in dirs:
             folder_path = os.path.join(root, folder)
+            if any(item in folder_path for item in test_items):
+                continue
             if "bots" in folder_path:
                 continue
             score = extract_result(folder_path)
@@ -93,15 +95,18 @@ def find_successful_task_files(
 
     return successful_task_files, unsuccessful_task_files
 
-def extract_conversation_parts(text):
+def extract_conversation_parts(text, memSaving=False):
     # Extract instruction (prompt)
 
     prompt_match = re.search(r'Prompt:\n(.*?)\nConversation:', text, re.DOTALL)
     instruction = prompt_match.group(1).strip() if prompt_match else ""
 
     # Extract input (conversation)
-    conv_match = re.search(r'\nConversation:(.*?)\n\nResponse:', text, re.DOTALL) 
-    conversation = conv_match.group(1).strip() if conv_match else ""
+    if not memSaving:
+        conv_match = re.search(r'\nConversation:(.*?)\n\nResponse:', text, re.DOTALL) 
+        conversation = conv_match.group(1).strip() if conv_match else ""
+    else: 
+        conversation = ""
 
     # Extract output (response)
     resp_match = re.search(r'Response:\n(.*?)$', text, re.DOTALL)
@@ -152,14 +157,16 @@ def filter_data(subfolder: str):
     for successful_file in successful_text_files:
         with open(successful_file, 'r') as f:
             successful_text = f.read()
-        successful_convo_parts = extract_conversation_parts(successful_text)
+        memSaving = "memSaving" in successful_file
+        successful_convo_parts = extract_conversation_parts(successful_text, memSaving)
         success_dataset.append(successful_convo_parts)
     # Save the successful dataset to a JSON file
     unsuccessful_dataset = []
     for unsuccessful_file in unsuccessful_text_files:
         with open(unsuccessful_file, 'r') as f:
             unsuccessful_text = f.read()
-        unsuccessful_convo_parts = extract_conversation_parts(unsuccessful_text)
+        memSaving = "memSaving" in unsuccessful_file
+        unsuccessful_convo_parts = extract_conversation_parts(unsuccessful_text, memSaving)
         unsuccessful_dataset.append(unsuccessful_convo_parts)
     # Save the unsuccessful dataset to a JSON file
     print("number of successful data points: ", len(success_dataset))
@@ -175,6 +182,7 @@ def make_sft_dataset(input_dir: str,
                      stats_output_file: str = None):
     # get all subfolder for input_dir
     subfolders = [f.path for f in os.scandir(input_dir) if f.is_dir()]
+    # filter subfolders based on test_items
     success_dataset = []
     fail_dataset = []
     meta_data = {}
@@ -186,6 +194,8 @@ def make_sft_dataset(input_dir: str,
                 meta_data[key] += value
             else:
                 meta_data[key] = value
+        success_dataset.extend(success_data)
+        fail_dataset.extend(fail_data)
     # shuffle datasets
     random.shuffle(success_dataset)
     random.shuffle(fail_dataset)
@@ -358,9 +368,9 @@ def make_dpo_preference_trajectory_pairs(successful_text, unsuccessful_text):
 
 
 make_sft_dataset(input_dir="downloaded_data/crafting", 
-                success_output_file="data/custom/crafting_sft_success.json", 
-                fail_output_file="data/custom/crafting_sft_fail.json", 
-                stats_output_file="data/custom/crafting_sft_stats.json")
+                success_output_file="data/custom/crafting_sft_success_new_mem.json", 
+                fail_output_file="data/custom/crafting_sft_fail_new_mem.json", 
+                stats_output_file="data/custom/crafting_sft_new_mem_stats.json")
 # dataset_statistics(input_dir="downloaded_data/cooking")
     
 

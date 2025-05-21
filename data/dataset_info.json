@@ -38,6 +38,18 @@
   "large_cooking_sft_fail": {
     "file_name": "custom/cooking_sft_fail.json"
   },
+  "cooking_sft_success_new_mem": {
+    "file_name": "custom/cooking_sft_sucess_new_mem.json"
+  },
+  "cooking_sft_fail_new_mem": {
+    "file_name": "custom/cooking_sft_fail_new_mem.json"
+  }, 
+  "crafting_sft_success_new_mem": {
+    "file_name": "custom/crafting_sft_success_new_mem.json"
+  },
+  "crafting_sft_fail_new_mem": {
+    "file_name": "custom/crafting_sft_fail_new_mem.json"
+  },
   "crafting_dpo_data": {
     "file_name": "custom/crafting_dpo_dataset.json",
     "ranking": true,
