@@ -4,6 +4,7 @@ import json
 from tqdm import tqdm
 from datasets import Dataset, load_dataset
 import pandas as pd
+import argparse
 
 def format_prompt_to_template(prompt_data):
     """Format prompt data to match the instruction/input/output template"""
@@ -195,13 +196,38 @@ def generate_with_dataset_format(data_file_path, model_name="microsoft/DialoGPT-
         num_proc=num_proc,
         desc="Formatting prompts"
     )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.padding_side = 'left'
+
+    num_gpus = torch.cuda.device_count()
+
+    # Configuration for multi-GPU setup
+    device_config = {
+        "device_map": "auto" if num_gpus > 1 else (0 if num_gpus == 1 else -1),
+        "torch_dtype": torch.float16 if num_gpus > 0 else torch.float32
+    }
+
+    # Add model_kwargs for multi-GPU scenarios
+    if num_gpus > 1:
+        device_config["model_kwargs"] = {
+            "device_map": "auto",
+            "max_memory": {i: "auto" for i in range(min(num_gpus, 8))}
+        }
+
+    generator = pipeline(
+        'text-generation', 
+        model=model_name, 
+        tokenizer=model_name,
+        **device_config
+    )
     
     # Initialize model and tokenizer
     print(f"Loading model: {model_name}")
     generator = pipeline(
         'text-generation', 
         model=model_name, 
-        tokenizer=model_name,
+        tokenizer=tokenizer,
         device=0 if torch.cuda.is_available() else -1,
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
     )
@@ -271,9 +297,46 @@ def save_dataset_results(dataset, save_path, format='json'):
 
 # Example usage
 if __name__ == "__main__":
-    data_file_path = "data/custom/cooking_sft_success_new_mem.json"
-    save_path = "data/custom/dpo_pairs.json"
-    model_name = "izzcw/large_cooking_sft_fail"
+
+    def parse_arguments():
+        parser = argparse.ArgumentParser(description='Generate preference pair dataset')
+        parser.add_argument('--data_file_path', type=str, default="data/custom/cooking_sft_success_new_mem.json", help='Path to the input data file')
+        parser.add_argument('--save_path', type=str, default="data/custom/dpo_pairs.json", help='Path to save the results file')
+        parser.add_argument('--model_name', type=str, default="izzcw/large_cooking_sft_fail", help='Name of the model to use')
+        parser.add_argument('--batch_size', type=int, default=4, help='Batch size for generation')
+        parser.add_argument('--num_proc', type=int, default=2, help='Number of processes for generation')
+        
+        return parser.parse_args()
+
+    if __name__ == "__main__":
+        args = parse_arguments()
+        data_file_path = args.data_file_path
+        save_path = args.save_path
+        model_name = args.model_name
+        batch_size = args.batch_size
+        num_proc = args.num_proc
+
+        # Generate responses using dataset
+        results_dataset = generate_with_dataset_format(
+            data_file_path=data_file_path,
+            model_name=model_name,
+            batch_size=batch_size,
+            num_proc=num_proc
+        )
+        
+        # Save results
+        save_dataset_results(results_dataset, save_path, format='json')
+        
+        # Print some sample results
+        print("\nSample results:")
+        for i in range(min(3, len(results_dataset))):
+            result = results_dataset[i]
+            print(f"\nExample {i+1}:")
+            print(f"Instruction: {result['instruction'][:100]}...")
+            print(f"Input: {str(result['input'])[:100]}...")
+            print(f"Dispreferred: {result['dispreferred'][:100]}...")
+            print(f"Preferred: {result['preferred'][:100]}...")
+            print("-" * 80)
     
     # Generate responses using dataset
     results_dataset = generate_with_dataset_format(
