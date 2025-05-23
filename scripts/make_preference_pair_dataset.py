@@ -105,7 +105,8 @@ def prepare_dataset(data_file_path):
     
     # Load JSON data
     with open(data_file_path) as f:
-        json_data = json.load(f)
+        # take only the first 1000 samples for testing
+        json_data = json.load(f)[:1000]
     
     # Convert to Dataset
     if isinstance(json_data, list):
@@ -211,7 +212,6 @@ def generate_with_dataset_format(data_file_path, model_name="microsoft/DialoGPT-
     # Add model_kwargs for multi-GPU scenarios
     if num_gpus > 1:
         device_config["model_kwargs"] = {
-            "device_map": "auto",
             "max_memory": {i: "auto" for i in range(min(num_gpus, 8))}
         }
 
