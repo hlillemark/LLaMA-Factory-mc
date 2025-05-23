@@ -1,29 +1,9 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import torch
-import torch.distributed as dist
-import torch.multiprocessing as mp
-from torch.nn.parallel import DistributedDataParallel as DDP
 import json
 from tqdm import tqdm
 from datasets import Dataset, load_dataset
 import pandas as pd
-import os
-from typing import List, Dict, Any
-import math
-import argparse
-
-def setup_distributed(rank, world_size):
-    """Initialize the distributed environment."""
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    
-    # Initialize the process group
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
-
-def cleanup_distributed():
-    """Clean up the distributed environment."""
-    dist.destroy_process_group()
 
 def format_prompt_to_template(prompt_data):
     """Format prompt data to match the instruction/input/output template"""
@@ -167,245 +147,57 @@ def format_prompt_for_generation(example):
     example['formatted_prompt'] = full_prompt
     return example
 
-class MultiGPUTextGenerator:
-    """Multi-GPU text generator using model parallelism"""
+def generate_batch_responses(examples, generator, batch_size=8):
+    """Generate responses for a batch of examples"""
     
-    def __init__(self, model_name: str, rank: int, world_size: int):
-        self.rank = rank
-        self.world_size = world_size
-        
-        # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-        
-        self.tokenizer.padding_side = "left"
-        
-        # Load model on specific GPU
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map=f"cuda:{rank}",
-            trust_remote_code=True
-        )
-        
-        # Wrap model with DDP
-        self.model = DDP(self.model, device_ids=[rank])
-        self.model.eval()
+    prompts = examples['formatted_prompt']
     
-    def generate_batch(self, prompts: List[str], max_length: int = 8000, 
-                      temperature: float = 0.7, do_sample: bool = True) -> List[str]:
-        """Generate responses for a batch of prompts"""
-        
-        # Tokenize inputs
-        inputs = self.tokenizer(
-            prompts, 
-            return_tensors="pt", 
-            padding=True, 
-            truncation=True,
-            max_length=max_length // 2  # Leave room for generation
-        ).to(f"cuda:{self.rank}")
-        
-        # Generate
-        with torch.no_grad():
-            outputs = self.model.module.generate(
-                **inputs,
-                max_length=max_length,
-                temperature=temperature,
-                do_sample=do_sample,
-                pad_token_id=self.tokenizer.eos_token_id,
-                num_return_sequences=1
-            )
-        
-        # Decode outputs
-        responses = []
-        for i, output in enumerate(outputs):
-            # Remove input tokens to get only the generated part
-            input_length = inputs['input_ids'][i].shape[0]
-            generated_tokens = output[input_length:]
-            response = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-            responses.append(response.strip())
-        
-        return responses
-
-def split_dataset_for_rank(dataset: Dataset, rank: int, world_size: int) -> Dataset:
-    """Split dataset across multiple GPUs"""
-    
-    total_size = len(dataset)
-    per_gpu_size = math.ceil(total_size / world_size)
-    start_idx = rank * per_gpu_size
-    end_idx = min(start_idx + per_gpu_size, total_size)
-    
-    # Create subset for this rank
-    indices = list(range(start_idx, end_idx))
-    return dataset.select(indices)
-
-def generate_responses_worker(rank: int, world_size: int, data_file_path: str, 
-                            model_name: str, batch_size: int, save_path: str,
-                            generation_params: Dict[str, Any]):
-    """Worker function for each GPU process"""
-    
-    try:
-        # Setup distributed environment
-        setup_distributed(rank, world_size)
-        
-        if rank == 0:
-            print(f"Setting up multi-GPU generation with {world_size} GPUs")
-        
-        # Load and prepare dataset
-        if rank == 0:
-            print("Loading and preparing dataset...")
-        
-        dataset = prepare_dataset(data_file_path)
-        
-        # Format prompts
-        dataset = dataset.map(
-            format_prompt_for_generation, 
-            desc=f"Formatting prompts (GPU {rank})" if rank == 0 else None
-        )
-        
-        # Split dataset for this rank
-        rank_dataset = split_dataset_for_rank(dataset, rank, world_size)
-        
-        if rank == 0:
-            print(f"Total dataset size: {len(dataset)}")
-            print(f"Processing {len(rank_dataset)} examples on GPU {rank}")
-        
-        # Initialize generator for this GPU
-        generator = MultiGPUTextGenerator(model_name, rank, world_size)
-        
-        # Process data in batches
-        results = []
-        num_batches = math.ceil(len(rank_dataset) / batch_size)
-        
-        for i in tqdm(range(0, len(rank_dataset), batch_size), 
-                     desc=f"Generating on GPU {rank}", 
-                     disable=rank != 0):
-            
-            batch_data = rank_dataset[i:i+batch_size]
-            
-            # Handle single example vs batch
-            if not isinstance(batch_data['formatted_prompt'], list):
-                batch_data = {k: [v] for k, v in batch_data.items()}
-            
-            prompts = batch_data['formatted_prompt']
-            
-            # Generate responses
-            responses = generator.generate_batch(
-                prompts, 
-                max_length=generation_params.get('max_length', 8000),
-                temperature=generation_params.get('temperature', 0.7),
-                do_sample=generation_params.get('do_sample', True)
-            )
-            
-            # Create result entries
-            for j, response in enumerate(responses):
-                if j < len(batch_data['instruction']):  # Safety check
-                    result = {
-                        "instruction": batch_data['instruction'][j],
-                        "input": batch_data['input'][j],
-                        "dispreferred": response,
-                        "preferred": batch_data.get('output', [''])[j] if isinstance(batch_data.get('output', ['']), list) else batch_data.get('output', ''),
-                        "formatted_prompt": batch_data['formatted_prompt'][j]
-                    }
-                    results.append(result)
-        
-        # Save results for this rank
-        rank_save_path = f"{save_path}_rank_{rank}.json"
-        with open(rank_save_path, 'w') as f:
-            json.dump(results, f, indent=2)
-        
-        if rank == 0:
-            print(f"GPU {rank} completed processing {len(results)} examples")
-        
-        # Wait for all processes to complete
-        dist.barrier()
-        
-        # Combine results on rank 0
-        if rank == 0:
-            print("Combining results from all GPUs...")
-            all_results = []
-            
-            for r in range(world_size):
-                rank_file = f"{save_path}_rank_{r}.json"
-                if os.path.exists(rank_file):
-                    with open(rank_file, 'r') as f:
-                        rank_results = json.load(f)
-                        all_results.extend(rank_results)
-                    # Clean up individual rank files
-                    os.remove(rank_file)
-            
-            # Save combined results
-            with open(save_path, 'w') as f:
-                json.dump(all_results, f, indent=2)
-            
-            # Calculate statistics
-            same_response_count = sum(1 for result in all_results 
-                                    if result['dispreferred'] == result['preferred'])
-            total_count = len(all_results)
-            
-            print(f"Generation completed!")
-            print(f"Total examples processed: {total_count}")
-            print(f"Same responses: {same_response_count}/{total_count} ({same_response_count/total_count*100:.2f}%)")
-            print(f"Results saved to {save_path}")
-        
-    except Exception as e:
-        print(f"Error in GPU {rank}: {str(e)}")
-        raise e
-    
-    finally:
-        cleanup_distributed()
-
-def generate_with_multi_gpu(data_file_path: str, model_name: str, save_path: str,
-                           batch_size: int = 4, world_size: int = None,
-                           generation_params: Dict[str, Any] = None):
-    """Main function to run multi-GPU generation"""
-    
-    if world_size is None:
-        world_size = torch.cuda.device_count()
-    
-    if world_size == 0:
-        raise ValueError("No CUDA devices available")
-    
-    if generation_params is None:
-        generation_params = {
-            'max_length': 8000,
-            'temperature': 0.7,
-            'do_sample': True
-        }
-    
-    print(f"Starting multi-GPU generation with {world_size} GPUs")
-    print(f"Model: {model_name}")
-    print(f"Data file: {data_file_path}")
-    print(f"Batch size per GPU: {batch_size}")
-    print(f"Generation parameters: {generation_params}")
-    
-    # Spawn processes for each GPU
-    mp.spawn(
-        generate_responses_worker,
-        args=(world_size, data_file_path, model_name, batch_size, save_path, generation_params),
-        nprocs=world_size,
-        join=True
+    # Generate responses in batch
+    generated_outputs = generator(
+        prompts,
+        max_length=8000,
+        num_return_sequences=1,
+        temperature=0.7,
+        do_sample=True,
+        truncation=True,
+        pad_token_id=generator.tokenizer.eos_token_id,
+        batch_size=batch_size
     )
+    
+    # Extract just the responses (remove the input prompts)
+    responses = []
+    for i, output in enumerate(generated_outputs):
+        if isinstance(output, list):
+            output = output[0]  # Take first if multiple returns
+        
+        full_output = output['generated_text']
+        prompt_length = len(prompts[i])
+        response_only = full_output[prompt_length:].strip()
+        responses.append(response_only)
+    
+    examples['dispreferred'] = responses
+    return examples
 
-def generate_single_gpu_fallback(data_file_path: str, model_name: str, save_path: str,
-                                batch_size: int = 8, generation_params: Dict[str, Any] = None):
-    """Fallback to single GPU if multi-GPU setup fails"""
+def generate_with_dataset_format(data_file_path, model_name="microsoft/DialoGPT-small", batch_size=8, num_proc=4):
+    """Generate responses using Dataset for efficient processing"""
     
-    print("Falling back to single GPU generation...")
-    
-    if generation_params is None:
-        generation_params = {
-            'max_length': 8000,
-            'temperature': 0.7,
-            'do_sample': True
-        }
-    
+    print("Loading and preparing dataset...")
     # Load dataset
     dataset = prepare_dataset(data_file_path)
-    dataset = dataset.map(format_prompt_for_generation, desc="Formatting prompts")
     
-    # Initialize pipeline
+    print(f"Dataset loaded with {len(dataset)} examples")
+    print("Sample data:", dataset[0])
+    
+    # Format prompts for generation
+    print("Formatting prompts...")
+    dataset = dataset.map(
+        format_prompt_for_generation, 
+        num_proc=num_proc,
+        desc="Formatting prompts"
+    )
+    
+    # Initialize model and tokenizer
+    print(f"Loading model: {model_name}")
     generator = pipeline(
         'text-generation', 
         model=model_name, 
@@ -414,103 +206,93 @@ def generate_single_gpu_fallback(data_file_path: str, model_name: str, save_path
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
     )
     
-    # Generate responses
-    results = []
-    for i in tqdm(range(0, len(dataset), batch_size), desc="Generating responses"):
-        batch = dataset[i:i+batch_size]
-        
-        if not isinstance(batch['formatted_prompt'], list):
-            batch = {k: [v] for k, v in batch.items()}
-        
-        prompts = batch['formatted_prompt']
-        
-        generated_outputs = generator(
-            prompts,
-            max_length=generation_params['max_length'],
-            temperature=generation_params['temperature'],
-            do_sample=generation_params['do_sample'],
-            truncation=True,
-            pad_token_id=generator.tokenizer.eos_token_id,
-            batch_size=len(prompts)
-        )
-        
-        for j, output in enumerate(generated_outputs):
-            if isinstance(output, list):
-                output = output[0]
-            
-            full_output = output['generated_text']
-            prompt_length = len(prompts[j])
-            response_only = full_output[prompt_length:].strip()
-            
+    # Generate responses in batches
+    print("Generating responses...")
+    def generate_batch(examples):
+        return generate_batch_responses(examples, generator, batch_size)
+    
+    # Process in batches
+    dataset_with_responses = dataset.map(
+        generate_batch,
+        batched=True,
+        batch_size=batch_size,
+        desc="Generating responses"
+    )
+    
+    # Add preferred responses and calculate metrics
+    def add_preferred_and_metrics(example):
+        example['preferred'] = example.get('output', '')
+        example['same_response'] = 1 if example['dispreferred'] == example['preferred'] else 0
+        return example
+    
+    dataset_with_responses = dataset_with_responses.map(
+        add_preferred_and_metrics,
+        desc="Adding preferred responses"
+    )
+    
+    # Calculate same response count
+    same_response_count = sum(dataset_with_responses['same_response'])
+    total_count = len(dataset_with_responses)
+    
+    print(f"Same responses: {same_response_count}/{total_count} ({same_response_count/total_count*100:.2f}%)")
+    
+    return dataset_with_responses
+
+def save_dataset_results(dataset, save_path, format='json'):
+    """Save dataset results to file"""
+    
+    if format == 'json':
+        # Convert to list of dictionaries and save as JSON
+        data_list = []
+        for example in dataset:
+            # Create result dictionary
             result = {
-                "instruction": batch['instruction'][j],
-                "input": batch['input'][j],
-                "dispreferred": response_only,
-                "preferred": batch.get('output', [''])[j] if isinstance(batch.get('output', ['']), list) else batch.get('output', ''),
-                "formatted_prompt": batch['formatted_prompt'][j]
+                "instruction": example.get('instruction', ''),
+                "input": example.get('input', ''),
+                "dispreferred": example.get('dispreferred', ''),
+                "preferred": example.get('preferred', ''),
+                "formatted_prompt": example.get('formatted_prompt', '')
             }
-            results.append(result)
+            data_list.append(result)
+        
+        with open(f"{save_path}", 'w') as f:
+            json.dump(data_list, f, indent=2)
+            
+    elif format == 'parquet':
+        # Save as parquet for efficiency
+        dataset.save_to_disk(save_path)
+        
+    elif format == 'csv':
+        # Convert to pandas and save as CSV
+        df = dataset.to_pandas()
+        df.to_csv(f"{save_path}.csv", index=False)
     
-    # Save results
-    with open(save_path, 'w') as f:
-        json.dump(results, f, indent=2)
-    
-    print(f"Single GPU generation completed. Results saved to {save_path}")
-    return results
+    print(f"Results saved to {save_path}")
 
 # Example usage
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--data_file_path', type=str, default="data/custom/cooking_sft_success_new_mem.json",
-                        help='Path to the data file')
-    parser.add_argument('--save_path', type=str, default="data/custom/dpo_pairs_cooking.json",
-                        help='Path to save the generated pairs')
-    parser.add_argument('--model_name', type=str, default="izzcw/large_cooking_sft_fail",
-                        help='Name of the model to use for generation')
-
-    args = parser.parse_args()
-    data_file_path = args.data_file_path
-    save_path = args.save_path
-    model_name = args.model_name
+    data_file_path = "data/custom/cooking_sft_success_new_mem.json"
+    save_path = "data/custom/dpo_pairs.json"
+    model_name = "izzcw/large_cooking_sft_fail"
     
-    generation_params = {
-        'max_length': 8000,
-        'temperature': 0.7,
-        'do_sample': True
-    }
+    # Generate responses using dataset
+    results_dataset = generate_with_dataset_format(
+        data_file_path=data_file_path,
+        model_name=model_name,
+        batch_size=4,  # Adjust based on your GPU memory
+        num_proc=2     # Adjust based on your CPU cores
+    )
     
-    try:
-        # Try multi-GPU generation
-        generate_with_multi_gpu(
-            data_file_path=data_file_path,
-            model_name=model_name,
-            save_path=save_path,
-            batch_size=2,  # Smaller batch size per GPU for memory efficiency
-            world_size=None,  # Auto-detect number of GPUs
-            generation_params=generation_params
-        )
-        
-    except Exception as e:
-        print(f"Multi-GPU generation failed: {str(e)}")
-        print("Falling back to single GPU...")
-        
-        # Fallback to single GPU
-        results = generate_single_gpu_fallback(
-            data_file_path=data_file_path,
-            model_name=model_name,
-            save_path=save_path,
-            batch_size=4,
-            generation_params=generation_params
-        )
-        
-        # Print sample results
-        print("\nSample results:")
-        for i in range(min(3, len(results))):
-            result = results[i]
-            print(f"\nExample {i+1}:")
-            print(f"Instruction: {result['instruction'][:100]}...")
-            print(f"Input: {str(result['input'])[:100]}...")
-            print(f"Dispreferred: {result['dispreferred'][:100]}...")
-            print(f"Preferred: {result['preferred'][:100]}...")
-            print("-" * 80)
+    # Save results
+    save_dataset_results(results_dataset, save_path, format='json')
+    
+    # Print some sample results
+    print("\nSample results:")
+    for i in range(min(3, len(results_dataset))):
+        result = results_dataset[i]
+        print(f"\nExample {i+1}:")
+        print(f"Instruction: {result['instruction'][:100]}...")
+        print(f"Input: {str(result['input'])[:100]}...")
+        print(f"Dispreferred: {result['dispreferred'][:100]}...")
+        print(f"Preferred: {result['preferred'][:100]}...")
+        print("-" * 80)
