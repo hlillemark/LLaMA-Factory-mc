@@ -158,6 +158,7 @@ def generate_batch_responses(examples, generator, batch_size=8):
     generated_outputs = generator(
         prompts,
         max_length=8000,
+        max_new_tokens=300,
         num_return_sequences=1,
         temperature=0.7,
         do_sample=True,
