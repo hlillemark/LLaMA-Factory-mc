@@ -157,7 +157,7 @@ def generate_batch_responses(examples, generator, batch_size=8):
     # Generate responses in batch
     generated_outputs = generator(
         prompts,
-        max_new_tokens=300,
+        max_new_tokens=150,
         num_return_sequences=1,
         temperature=0.7,
         do_sample=True,
