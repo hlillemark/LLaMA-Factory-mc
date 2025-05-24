@@ -219,7 +219,8 @@ def generate_with_dataset_format(data_file_path, model_name="microsoft/DialoGPT-
         'text-generation', 
         model=model_name, 
         tokenizer=model_name,
-        **device_config
+        device=0 if torch.cuda.is_available() else -1,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
     )
     
     # Initialize model and tokenizer
