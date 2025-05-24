@@ -210,10 +210,10 @@ def generate_with_dataset_format(data_file_path, model_name="microsoft/DialoGPT-
     }
 
     # Add model_kwargs for multi-GPU scenarios
-    if num_gpus > 1:
-        device_config["model_kwargs"] = {
-            "max_memory": {i: "auto" for i in range(min(num_gpus, 8))}
-        }
+    # if num_gpus > 1:
+    #     device_config["model_kwargs"] = {
+    #         "max_memory": {i: "auto" for i in range(min(num_gpus, 8))}
+    #     }
 
     generator = pipeline(
         'text-generation', 
