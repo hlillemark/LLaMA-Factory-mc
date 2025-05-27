@@ -50,7 +50,7 @@
   "crafting_sft_fail_new_mem": {
     "file_name": "custom/crafting_sft_fail_new_mem.json"
   },
-  "crafintg_dpo_pairs": {
+  "crafting_dpo_pairs": {
     "file_name": "custom/dpo_pairs_crafting_filtered_llama_factory.json",
     "formatting": "sharegpt",
     "columns": {
