@@ -118,6 +118,25 @@ def extract_conversation_parts(text, memSaving=False):
         "output": response
     }
 
+def extract_conversation_parts_new(text, memSaving=False):
+    # Extract instruction (prompt)
+    prompt_match = re.search(r'Prompt:\n(.*?)\nConversation:', text, re.DOTALL)
+    instruction = prompt_match.group(1).strip() if prompt_match else ""
+
+    # Extract input (conversation)
+    conv_match = re.search(r'\nConversation:(.*?)\n\nResponse:', text, re.DOTALL) 
+    conversation = conv_match.group(1).strip() if conv_match else ""
+    conversation = json.loads(conversation) if conversation else {}
+
+    # Extract output (response)
+    resp_match = re.search(r'Response:\n(.*?)$', text, re.DOTALL)
+    response = resp_match.group(1).strip() if resp_match else ""
+
+    conversation.append({"from": "assistant", "value": response})
+    conversation = [{"role": "system", "content": instruction}] + conversation
+
+    return conversation
+
 def filter_data(subfolder: str):
     """
     Process the logs and create a dataset for SFT.
@@ -216,86 +235,6 @@ def make_sft_dataset(input_dir: str,
         with open(stats_output_file, 'w') as f:
             json.dump(meta_data, f, indent=4)
 
-# def dataset_statistics(input_dir):
-#     subfolders = [f.path for f in os.scandir(input_dir) if f.is_dir()]
-#     success_dataset = []
-#     fail_dataset = []
-#     meta_data = {}
-#     for subfolder in subfolders:
-#         print(f"Processing {subfolder}")
-#         success_data, fail_data, sub_meta_data = data_stats_subfolder(subfolder)
-#         for key, value in sub_meta_data.items():
-#             if key in meta_data:
-#                 meta_data[key] += value
-#             else:
-#                 meta_data[key] = value
-#         success_dataset.extend(success_data)
-#         fail_dataset.extend(fail_data)
-#     # shuffle datasets
-#     random.shuffle(success_dataset)
-#     random.shuffle(fail_dataset)
-#     # Save the successful dataset to a JSON file
-#     with open(success_output_file, 'w') as f:
-#         json.dump(success_dataset, f, indent=4)
-#     # Save the unsuccessful dataset to a JSON file
-#     with open(fail_output_file, 'w') as f:
-#         json.dump(fail_dataset, f, indent=4)
-#     print(meta_data)
-
-# def data_stats_subfolder(subfolder):
-#     """
-#     Process the logs and create a dataset for SFT.
-#     Args:
-#         directory (str): The directory containing the logs.
-#         output_file (str): The output JSON file path.
-#     """
-#     successful_task_dirs, unsuccessful_task_dirs = find_successful_task_files(subfolder)
-#     successful_task_names = [os.path.basename(task_dir) for task_dir in successful_task_dirs]
-#     print("Number of successful tasks: ", len(successful_task_names))
-#     unsuccessful_task_names = [os.path.basename(task_dir) for task_dir in unsuccessful_task_dirs]
-#     successful_text_files, unsuccessful_text_files = [], []
-#     dataset = []
-#     # match successful task files with bots/subfolder 
-#     # and unsuccessful task files with bots/subfolder
-#     # and create a d
-#     bots_folder = os.path.join(subfolder, "bots")
-#     print(f"Processing {bots_folder}")
-#     trajectory_lengths = []
-#     # get all subfolder for bots_folder
-#     for (root, dirs, files) in os.walk(bots_folder):
-#         task_name = os.path.basename(root)
-#         if task_name in successful_task_names:
-#             successful_task_files = glob.glob(os.path.join(root, "*.txt"))
-#             conversations = [file_name for file_name in successful_task_files if "conversation" in file_name]
-#             length_convo = len(conversations)
-#             trajectory_lengths.append(length_convo)
-#         elif task_name in unsuccessful_task_names:
-#             unsuccessful_task_files = glob.glob(os.path.join(root, "*.txt"))
-#             conversations = [file_name for file_name in unsuccessful_task_files if "conversation" in file_name]
-#             length_convo = len(conversations)
-#             trajectory_lengths.append(length_convo)
-
-#     success_dataset = []
-#     for successful_file in successful_text_files:
-#         with open(successful_file, 'r') as f:
-#             successful_text = f.read()
-#         successful_convo_parts = extract_conversation_parts(successful_text)
-#         success_dataset.append(successful_convo_parts)
-#     # Save the successful dataset to a JSON file
-#     unsuccessful_dataset = []
-#     for unsuccessful_file in unsuccessful_text_files:
-#         with open(unsuccessful_file, 'r') as f:
-#             unsuccessful_text = f.read()
-#         unsuccessful_convo_parts = extract_conversation_parts(unsuccessful_text)
-#         unsuccessful_dataset.append(unsuccessful_convo_parts)
-#     # Save the unsuccessful dataset to a JSON file
-#     print("number of successful data points: ", len(success_dataset))
-#     return success_dataset, unsuccessful_dataset, {"success_tasks": len(successful_task_dirs), 
-#                                                    "fail_tasks": len(unsuccessful_task_dirs), 
-#                                                    "success_examples": len(success_dataset),
-#                                                    "fail_examples": len(unsuccessful_dataset), 
-#                                                    "average_trajectory_length": trajectory_lengths,}
-
 def make_dpo_subfolder_dataset(subfolder: str):
     """
     Process the logs and create a dataset for DPO.
@@ -307,7 +246,7 @@ def make_dpo_subfolder_dataset(subfolder: str):
     successful_task_names = [os.path.basename(task_dir) for task_dir in successful_task_dirs]
     unsuccessful_task_names = [os.path.basename(task_dir) for task_dir in unsuccessful_task_dirs]
     successful_text_files, unsuccessful_text_files = [], []
-    dataset = []
+    successful_text_dict, unsuccessful_text_dict = {}, {}
     # match successful task files with bots/subfolder 
     # and unsuccessful task files with bots/subfolder
     # and create a d
@@ -320,35 +259,62 @@ def make_dpo_subfolder_dataset(subfolder: str):
             successful_task_files = glob.glob(os.path.join(root, "*.txt"))
             # sort the text files by name and remove first 15
             successful_task_files.sort()
-            successful_task_files = successful_task_files[15:]
+            successful_task_files = [file for file in successful_task_files if "conversation" in file]
+            successful_task_files = [successful_task_files[-1]]
             successful_text_files.extend(successful_task_files)
+            if not task_name in successful_text_dict.keys():
+                successful_text_dict[task_name] = successful_task_files
+            else:
+                successful_text_dict[task_name].extend(successful_task_files)
         elif task_name in unsuccessful_task_names:
             unsuccessful_task_files = glob.glob(os.path.join(root, "*.txt"))
             # sort the text files by name and remove first 15
             unsuccessful_task_files.sort()
-            unsuccessful_task_files = unsuccessful_task_files[15:]
+            unsuccessful_task_files = [file for file in unsuccessful_task_files if "conversation" in file]
+            unsuccessful_task_files = [unsuccessful_task_files[-1]]
             unsuccessful_text_files.extend(unsuccessful_task_files)
+            if not task_name in unsuccessful_text_dict.keys():
+                unsuccessful_text_dict[task_name] = unsuccessful_task_files
+            else:
+                unsuccessful_text_dict[task_name].extend(unsuccessful_task_files)
 
-    for successful_file, unsuccessful_file in zip(successful_text_files, unsuccessful_text_files):
-        with open(successful_file, 'r') as f:
-            successful_text = f.read()
-        with open(unsuccessful_file, 'r') as f:
-            unsuccessful_text = f.read()
+    print(successful_text_dict.keys())
+    print(unsuccessful_text_dict.keys())
+    
 
-        dpo_pair = make_dpo_preference_trajectory_pairs(successful_text, unsuccessful_text)
-        dataset.append(dpo_pair)
-
-    return dataset
+    return successful_text_dict, unsuccessful_text_dict
 
 def make_dpo_dataset(input_dir: str, output_file: str):
 
     # get all subfolder for input_dir
     subfolders = [f.path for f in os.scandir(input_dir) if f.is_dir()]
     dataset = []
+    successful_text_dict = {}
+    unsuccessful_text_dict = {}
     for subfolder in subfolders:
         print(f"Processing {subfolder}")
-        dpo_dataset = make_dpo_subfolder_dataset(subfolder)
-        dataset.extend(dpo_dataset)
+        successful_text, unsuccessful_text = make_dpo_subfolder_dataset(subfolder)
+        successful_text_dict.update(successful_text)
+        unsuccessful_text_dict.update(unsuccessful_text)
+    for task in successful_text_dict.keys():
+        if task in unsuccessful_text_dict.keys():
+            print("in both successful and unsuccessful text dicts")
+            successful_files = successful_text_dict[task]
+            unsuccessful_files = unsuccessful_text_dict[task]
+            # Ensure both lists have the same length
+            if len(successful_files) < len(unsuccessful_files):
+                unsuccessful_files = unsuccessful_files[:len(successful_files)]
+            elif len(successful_files) > len(unsuccessful_files):
+                successful_files = successful_files[:len(unsuccessful_files)]
+            for successful_file, unsuccessful_file in zip(successful_files, unsuccessful_files):
+                if successful_file is None or unsuccessful_file is None:
+                    continue
+                with open(successful_file, 'r') as f:
+                    successful_text = f.read()
+                with open(unsuccessful_file, 'r') as f:
+                    unsuccessful_text = f.read()
+                dpo_pair = make_new_dpo_preference_pairs(successful_text, unsuccessful_text)
+                dataset.append(dpo_pair)
     # Save the dataset to a JSON file
     with open(output_file, 'w') as f:
         json.dump(dataset, f, indent=4)
@@ -366,11 +332,22 @@ def make_dpo_preference_trajectory_pairs(successful_text, unsuccessful_text):
         "rejected": rejected,
     }
 
+def make_new_dpo_preference_pairs(successful_text, unsuccessful_text):
+    successful_convo = extract_conversation_parts_new(successful_text)
+    unsuccessful_convo = extract_conversation_parts_new(unsuccessful_text)
 
-make_sft_dataset(input_dir="downloaded_data/crafting", 
-                success_output_file="data/custom/crafting_sft_success_new_mem.json", 
-                fail_output_file="data/custom/crafting_sft_fail_new_mem.json", 
-                stats_output_file="data/custom/crafting_sft_new_mem_stats.json")
+    return {
+        "chosen": successful_convo,
+        "rejected": unsuccessful_convo,
+    }
+
+
+# make_sft_dataset(input_dir="downloaded_data/crafting", 
+#                 success_output_file="data/custom/crafting_sft_success_new_mem.json", 
+#                 fail_output_file="data/custom/crafting_sft_fail_new_mem.json", 
+#                 stats_output_file="data/custom/crafting_sft_new_mem_stats.json")
+make_dpo_dataset(input_dir="downloaded_data/crafting", 
+                 output_file="data/custom/trajectory_crafting_dpo_pairs.json")
 # dataset_statistics(input_dir="downloaded_data/cooking")
     
 

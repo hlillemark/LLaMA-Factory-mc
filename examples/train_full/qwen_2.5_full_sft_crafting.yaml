@@ -10,14 +10,14 @@ deepspeed: examples/deepspeed/ds_z3_config.json  # choices: [ds_z0_config.json, 
 push_to_hub: true
 
 ### dataset
-dataset: identity,large_crafting_sft_success_new_mem
-template: llama3
+dataset: identity,large_crafting_sft_success
+template: qwen
 cutoff_len: 8192
 overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3-8b/full/large_crafting_sft_success_new_mem
+output_dir: saves/llama3-8b/full/large_crafting_sft_success
 logging_steps: 10
 save_steps: 500
 plot_loss: true
@@ -41,4 +41,4 @@ eval_steps: 50
 
 ### reporting
 report_to: wandb
-run_name: llama3-8b-full-crafting-data
+run_name: qwen2.5-1.5b-full-crafting-data
